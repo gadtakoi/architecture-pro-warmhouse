@@ -1,0 +1,26 @@
+@startuml
+title WarmHouse System Context Diagram
+
+top to bottom direction
+
+!include ../vendor/C4-PlantUML/C4_Context.puml
+
+
+AddRelTag("control", $textColor="#000000", $lineColor="#438dd5", $lineStyle=DashedLine())
+
+Person(user, "User", "Пользователь, управляющий системой отопления")
+Person(admin, "Administrator", "Администратор, контролирующий работу системы")
+System(WarmHouseSystem, "WarmHouse System", "Умный дом")
+
+System_Ext(house1, "Дом 1", "Система отопления")
+System_Ext(house2, "Дом 2", "Система отопления")
+System_Ext(houseN, "Дом N", "Система отопления")
+
+Rel(user, WarmHouseSystem, "Использование системы")
+Rel(admin, WarmHouseSystem, "Управление системой и контроль")
+
+BiRel(WarmHouseSystem, house1, "Получение температуры / Управление", $tags="control")
+BiRel(WarmHouseSystem, house2, "Получение температуры / Управление", $tags="control")
+BiRel(WarmHouseSystem, houseN, "Получение температуры / Управление", $tags="control")
+
+@enduml
