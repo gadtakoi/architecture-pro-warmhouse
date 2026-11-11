@@ -1,0 +1,84 @@
+@startuml
+title WarmHouse System — Component Diagram (MVP, To-Be)
+
+!include ../vendor/C4-PlantUML/C4_Component.puml
+
+Person(user, "User", "Владелец дома")
+System_Ext(houses, "Houses (1..N)", "Хаб умного дома с модулями")
+
+System_Boundary(warmhouse, "WarmHouse System") {
+
+  Container(WebApp, "Web Application", "React", "UI пользователя")
+  Container(ApiGateway, "API Gateway", "Nginx", "Маршрутизация и аутентификация")
+
+  Container_Boundary(coreServices, "Core Services") {
+    Container_Boundary(userService, "User Service") {
+      Component(UserApi, "User API", "FastAPI", "Аутентификация и профили")
+      Component(AuthManager, "Auth Manager", "Python", "JWT, роли, доступы")
+      ContainerDb(UserDb, "Users DB", "PostgreSQL", "Пользователи и роли")
+    }
+
+    Container_Boundary(houseService, "House Service") {
+      Component(HouseApi, "House API", "FastAPI", "Дома, комнаты, доступы")
+      Component(AccessManager, "Access Manager", "Python", "Права пользователей на дом")
+      ContainerDb(HouseDb, "Houses DB", "PostgreSQL", "Дома, комнаты, права")
+    }
+  }
+
+  Container_Boundary(deviceService, "Device Service") {
+    Component(DeviceApi, "Device API", "FastAPI", "REST-интерфейс реестра устройств")
+    Component(DeviceRegistry, "Device Registry", "Python", "Модули, устройства, привязка к дому")
+    Component(CapabilityCatalog, "Capability Catalog", "Python", "Типы устройств и их capabilities")
+    ContainerDb(DeviceDb, "Devices DB", "PostgreSQL", "Реестр устройств")
+  }
+
+  Container_Boundary(controlService, "Device Control Service") {
+    Component(ControlApi, "Control API", "FastAPI", "Приём команд и выдача очереди дому")
+    Component(CommandValidator, "Command Validator", "Python", "Проверка команды по capabilities")
+    Component(StateManager, "State Manager", "Python", "Текущие состояния устройств")
+    ContainerDb(ControlDb, "Device Control DB", "PostgreSQL", "Состояния и очередь команд")
+  }
+
+  Container_Boundary(telemetry, "Telemetry Platform") {
+    Component(IngestApi, "Ingest API", "FastAPI", "Приём batch JSON, 202 Accepted")
+    ComponentQueue(Queue, "Message Queue", "RabbitMQ", "telemetry.raw")
+    Component(TelemetryWorker, "Telemetry Worker", "Celery", "Нормализация, дедупликация, запись")
+    Component(QueryApi, "Query API", "FastAPI", "Текущие значения и история")
+    ContainerDb(TelemetryDb, "Telemetry DB", "PostgreSQL", "История показаний")
+  }
+}
+
+Rel(user, WebApp, "Использует", "HTTPS")
+Rel(WebApp, ApiGateway, "REST/JSON", "HTTPS")
+Rel(houses, ApiGateway, "POST /ingest, GET /commands", "HTTPS")
+
+Rel(ApiGateway, UserApi, "/auth, /users", "REST")
+Rel(ApiGateway, HouseApi, "/houses", "REST")
+Rel(ApiGateway, DeviceApi, "/devices", "REST")
+Rel(ApiGateway, ControlApi, "/control, /commands", "REST")
+Rel(ApiGateway, IngestApi, "/ingest", "REST")
+Rel(ApiGateway, QueryApi, "/telemetry", "REST")
+
+Rel(UserApi, AuthManager, "Использует")
+Rel(AuthManager, UserDb, "Читает/пишет")
+Rel(HouseApi, AccessManager, "Использует")
+Rel(AccessManager, HouseDb, "Читает/пишет")
+
+Rel(DeviceApi, DeviceRegistry, "Использует")
+Rel(DeviceRegistry, CapabilityCatalog, "Проверяет тип")
+Rel(DeviceRegistry, DeviceDb, "Читает/пишет")
+
+Rel(ControlApi, CommandValidator, "Валидирует")
+Rel(CommandValidator, DeviceApi, "Запрашивает capabilities", "REST")
+Rel(ControlApi, StateManager, "Обновляет")
+Rel(StateManager, ControlDb, "Читает/пишет")
+
+Rel(IngestApi, Queue, "Публикует", "AMQP")
+Rel(Queue, TelemetryWorker, "Доставляет", "AMQP")
+Rel(TelemetryWorker, TelemetryDb, "Пишет", "SQL")
+Rel(QueryApi, TelemetryDb, "Читает", "SQL")
+
+Lay_L(coreServices, deviceService)
+Lay_R(deviceService, controlService)
+Lay_R(controlService, telemetry)
+@enduml
