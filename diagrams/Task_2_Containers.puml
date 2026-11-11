@@ -5,73 +5,74 @@ title WarmHouse System — Container Diagram (To-Be)
 
 
 AddRelTag("async", $textColor="#000000", $lineColor="#E67E22", $lineStyle=DashedLine())
-AddRelTag("command", $textColor="#000000", $lineColor="#C0392B", $lineStyle=DashedLine())
+AddRelTag("media", $textColor="#000000", $lineColor="#8E44AD", $lineStyle=DashedLine())
 
-Person(user, "User", "Владелец дома: мониторинг температуры и управление отоплением")
+Person(user, "User", "Владелец дома: сам подключает модули, управляет устройствами, смотрит телеметрию и видео")
 Person(admin, "Administrator", "Сотрудник сервиса: дома, устройства, доступы")
 
-System_Ext(houses, "Houses (1..N)", "Датчики температуры и системы отопления в домах клиентов")
+System_Ext(houses, "Houses (1..N)", "Хаб умного дома с модулями: отопление, свет, ворота, камеры, датчики")
 
 System_Boundary(warmhouse, "WarmHouse System") {
 
-  Container(WebApp, "Web Application", "React, TypeScript", "Мониторинг, управление отоплением, история показаний; обновление данных опросом")
+  Container(WebApp, "Web Application", "React, TypeScript", "Мониторинг, управление модулями и устройствами; обновление данных опросом")
 
   Container(ApiGateway, "API Gateway", "Nginx", "JWT-аутентификация, rate limiting, логирование, маршрутизация")
 
-  Container_Boundary(core, "Core Domain Services (As-Is domains)") {
+  Container_Boundary(core, "Core Services (As-Is domains)") {
     Container(UserService, "User Service", "Python, FastAPI", "Домен «Пользователи»: аккаунты, роли, аутентификация")
     ContainerDb(UserDb, "Users DB", "PostgreSQL", "Пользователи и роли")
 
-    Container(HouseService, "House Service", "Python, FastAPI", "Домен «Дома»: дома, комнаты, привязка пользователей")
-    ContainerDb(HouseDb, "Houses DB", "PostgreSQL", "Дома, комнаты, права доступа")
+    Container(HouseService, "House Service", "Python, FastAPI", "Домен «Дома»: дома, комнаты, доступы")
+    ContainerDb(HouseDb, "Houses DB", "PostgreSQL", "Дома, комнаты, права")
 
-    Container(DeviceService, "Device Service", "Python, FastAPI", "Домен «Устройства»: реестр датчиков и систем отопления")
-    ContainerDb(DeviceDb, "Devices DB", "PostgreSQL", "Устройства, привязка к домам, статусы")
+    Container(DeviceService, "Device Service", "Python, FastAPI", "Домен «Устройства»: реестр модулей и устройств, подключение, capabilities")
+    ContainerDb(DeviceDb, "Devices DB", "PostgreSQL", "Модули, типы устройств, capabilities, статусы")
+  }
 
-    Container(HeatingService, "Heating Control Service", "Python, FastAPI", "Домен «Отопление»: расписания, сценарии")
-    ContainerDb(HeatingDb, "Heating DB", "PostgreSQL", "Расписания, режимы")
+  Container_Boundary(automation, "Home Automation Services (To-Be)") {
+    Container(DeviceControlService, "Device Control Service", "Python, FastAPI", "Универсальное управление всеми типами устройств: команды, состояния, валидация по capabilities")
+    ContainerDb(DeviceControlDb, "Device Control DB", "PostgreSQL", "Состояния устройств, очередь команд, история команд")
   }
 
   Container_Boundary(telemetry, "Telemetry Platform (To-Be)") {
-    Container(IngestService, "Telemetry Ingest API", "Python, FastAPI, Pydantic", "Валидация batch JSON, постановка в очередь, ответ 202 Accepted")
-    Container(QueryService, "Telemetry Query API", "Python, FastAPI", "Текущие значения и история показаний для UI: пагинация и агрегаты")
-    ContainerQueue(MessageBroker, "Message Broker", "RabbitMQ", "telemetry.raw, heating.commands")
+    Container(IngestService, "Telemetry Ingest API", "Python, FastAPI, Pydantic", "Валидация batch JSON, очередь, 202 Accepted")
+    Container(QueryService, "Telemetry Query API", "Python, FastAPI", "Текущие значения и история для UI")
+    ContainerQueue(MessageBroker, "Message Broker", "RabbitMQ", "telemetry.raw")
     Container(TelemetryWorker, "Telemetry Workers", "Python, Celery", "Нормализация, дедупликация, батч-запись")
     ContainerDb(TelemetryDb, "Telemetry DB", "PostgreSQL", "История показаний")
-    Container(CommandService, "Device Command Service", "Python, FastAPI", "Хранит новые настройки для домов; дома забирают их опросом GET /commands")
-    ContainerDb(CommandDb, "Commands DB", "PostgreSQL", "Очередь невыданных команд и статусы доставки")
+  }
+
+  Container_Boundary(video, "Video Platform (To-Be)") {
+    Container(VideoGateway, "Video Streaming Gateway", "WebRTC / HLS", "Удалённое наблюдение: приём потока от камер и раздача в браузер")
   }
 }
 
 Rel(user, WebApp, "Использует", "HTTPS")
 Rel(admin, WebApp, "Управляет", "HTTPS")
 
-Rel(WebApp, ApiGateway, "REST/JSON; обновление данных опросом GET /telemetry/latest", "HTTPS")
+Rel(WebApp, ApiGateway, "REST/JSON; опрос GET /telemetry/latest", "HTTPS")
+Rel(WebApp, VideoGateway, "Просмотр камер", "HTTPS / WebRTC", $tags="media")
 
-Rel(houses, ApiGateway, "POST /ingest: batch JSON с показаниями, GET /commands: получение новых настроек", "HTTPS")
+Rel(houses, ApiGateway, "POST /devices/pair, POST /ingest, GET /commands", "HTTPS")
+Rel(houses, VideoGateway, "Публикация потока", "RTSP / WebRTC", $tags="media")
 
-Rel(ApiGateway, UserService, "Маршрутизация /auth, /users", "REST")
-Rel(ApiGateway, HouseService, "Маршрутизация /houses", "REST")
-Rel(ApiGateway, DeviceService, "Маршрутизация /devices", "REST")
-Rel(ApiGateway, HeatingService, "Маршрутизация /heating", "REST")
-Rel(ApiGateway, IngestService, "Маршрутизация /ingest", "REST")
-Rel(ApiGateway, QueryService, "Маршрутизация /telemetry", "REST")
-Rel(ApiGateway, CommandService, "Маршрутизация /commands", "REST")
+Rel(ApiGateway, UserService, "/auth, /users", "REST")
+Rel(ApiGateway, HouseService, "/houses", "REST")
+Rel(ApiGateway, DeviceService, "/devices", "REST")
+Rel(ApiGateway, DeviceControlService, "/control, /commands", "REST")
+Rel(ApiGateway, IngestService, "/ingest", "REST")
+Rel(ApiGateway, QueryService, "/telemetry", "REST")
 
 Rel(UserService, UserDb, "Читает/пишет")
 Rel(HouseService, HouseDb, "Читает/пишет")
 Rel(DeviceService, DeviceDb, "Читает/пишет")
-Rel(HeatingService, HeatingDb, "Читает/пишет")
-Rel(CommandService, CommandDb, "Читает/пишет")
+Rel(DeviceControlService, DeviceControlDb, "Читает/пишет")
 
-Rel(IngestService, MessageBroker, "Публикует telemetry.raw", "AMQP", $tags="async")
-Rel(MessageBroker, TelemetryWorker, "Доставляет telemetry.raw", "AMQP", $tags="async")
-Rel(TelemetryWorker, TelemetryDb, "Батч-запись показаний", "SQL")
-Rel(QueryService, TelemetryDb, "Читает текущие значения и историю", "SQL")
+Rel(DeviceControlService, DeviceService, "Проверяет capabilities и тип устройства", "REST")
 
-Rel(HeatingService, MessageBroker, "Команды heating.commands", "AMQP", $tags="command")
-Rel(MessageBroker, CommandService, "Команды для домов", "AMQP", $tags="command")
-
-SHOW_LEGEND()
+Rel(IngestService, MessageBroker, "telemetry.raw", "AMQP", $tags="async")
+Rel(MessageBroker, TelemetryWorker, "telemetry.raw", "AMQP", $tags="async")
+Rel(TelemetryWorker, TelemetryDb, "Батч-запись", "SQL")
+Rel(QueryService, TelemetryDb, "Чтение", "SQL")
 
 @enduml
