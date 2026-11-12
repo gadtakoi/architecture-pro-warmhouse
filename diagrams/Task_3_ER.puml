@@ -1,0 +1,94 @@
+@startuml
+title WarmHouse — ER Diagram
+
+
+package "User Service" {
+
+  entity "users" as users {
+    * id : uuid <<PK>>
+    --
+    * email : varchar <<UK>>
+    * password_hash : varchar
+    * role : varchar
+  }
+}
+
+package "House Service" {
+
+  entity "houses" as houses {
+    * id : uuid <<PK>>
+    --
+    * name : varchar
+  }
+
+  entity "house_users" as house_users {
+    * house_id : uuid <<PK, FK>>
+    * user_id : uuid <<PK, FK>>
+    --
+    * role : varchar
+  }
+}
+
+package "Device Service" {
+
+  entity "device_types" as device_types {
+    * id : uuid <<PK>>
+    --
+    * code : varchar <<UK>>
+    * capabilities : jsonb
+  }
+
+  entity "devices" as devices {
+    * id : uuid <<PK>>
+    --
+    * type_id : uuid <<FK>>
+    * house_id : uuid <<FK>>
+    * serial_number : varchar <<UK>>
+    * status : varchar
+  }
+}
+
+package "Device Control Service" {
+
+  entity "device_states" as device_states {
+    * device_id : uuid <<PK, FK>>
+    --
+    * state : jsonb
+  }
+
+  entity "device_commands" as device_commands {
+    * id : uuid <<PK>>
+    --
+    * house_id : uuid <<FK>>
+    * device_id : uuid <<FK>>
+    * requested_by : uuid <<FK>>
+    * action : varchar
+    * params : jsonb
+    * status : varchar
+    * expires_at : timestamptz
+  }
+}
+
+package "Telemetry Platform" {
+
+  entity "telemetry_data" as telemetry_data {
+    * id : bigserial <<PK>>
+    --
+    * device_id : uuid <<FK>>
+    * metric : varchar
+    * value : numeric
+    * recorded_at : timestamptz
+  }
+}
+
+users ||--o{ house_users : "имеет доступ"
+houses ||--o{ house_users : ""
+houses ||--o{ devices : "содержит"
+device_types ||--o{ devices : "типизирует"
+devices ||--o| device_states : "имеет состояние"
+houses ||--o{ device_commands : "адресует"
+devices ||--o{ device_commands : "получает"
+users ||--o{ device_commands : "инициирует"
+devices ||--o{ telemetry_data : "передаёт"
+
+@enduml

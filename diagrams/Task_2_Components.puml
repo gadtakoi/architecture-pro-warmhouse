@@ -1,5 +1,5 @@
 @startuml
-title WarmHouse System — Component Diagram (MVP, To-Be)
+title WarmHouse System — Component Diagram (To-Be)
 
 !include ../vendor/C4-PlantUML/C4_Component.puml
 
@@ -19,15 +19,15 @@ System_Boundary(warmhouse, "WarmHouse System") {
     }
 
     Container_Boundary(houseService, "House Service") {
-      Component(HouseApi, "House API", "FastAPI", "Дома, комнаты, доступы")
+      Component(HouseApi, "House API", "FastAPI", "Дома, доступы")
       Component(AccessManager, "Access Manager", "Python", "Права пользователей на дом")
-      ContainerDb(HouseDb, "Houses DB", "PostgreSQL", "Дома, комнаты, права")
+      ContainerDb(HouseDb, "Houses DB", "PostgreSQL", "Дома, права")
     }
   }
 
   Container_Boundary(deviceService, "Device Service") {
     Component(DeviceApi, "Device API", "FastAPI", "REST-интерфейс реестра устройств")
-    Component(DeviceRegistry, "Device Registry", "Python", "Модули, устройства, привязка к дому")
+    Component(DeviceRegistry, "Device Registry", "Python", "Устройства, привязка к дому")
     Component(CapabilityCatalog, "Capability Catalog", "Python", "Типы устройств и их capabilities")
     ContainerDb(DeviceDb, "Devices DB", "PostgreSQL", "Реестр устройств")
   }

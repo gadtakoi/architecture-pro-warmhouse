@@ -22,11 +22,11 @@ System_Boundary(warmhouse, "WarmHouse System") {
     Container(UserService, "User Service", "Python, FastAPI", "Домен «Пользователи»: аккаунты, роли, аутентификация")
     ContainerDb(UserDb, "Users DB", "PostgreSQL", "Пользователи и роли")
 
-    Container(HouseService, "House Service", "Python, FastAPI", "Домен «Дома»: дома, комнаты, доступы")
-    ContainerDb(HouseDb, "Houses DB", "PostgreSQL", "Дома, комнаты, права")
+    Container(HouseService, "House Service", "Python, FastAPI", "Домен «Дома»: дома, доступы")
+    ContainerDb(HouseDb, "Houses DB", "PostgreSQL", "Дома, права")
 
-    Container(DeviceService, "Device Service", "Python, FastAPI", "Домен «Устройства»: реестр модулей и устройств, подключение, capabilities")
-    ContainerDb(DeviceDb, "Devices DB", "PostgreSQL", "Модули, типы устройств, capabilities, статусы")
+    Container(DeviceService, "Device Service", "Python, FastAPI", "Домен «Устройства»: реестр устройств, подключение, capabilities")
+    ContainerDb(DeviceDb, "Devices DB", "PostgreSQL", "Типы устройств, capabilities, статусы")
   }
 
   Container_Boundary(automation, "Home Automation Services (To-Be)") {
