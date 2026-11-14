@@ -15,21 +15,20 @@ System_Boundary(warmhouse, "WarmHouse System") {
     Container_Boundary(userService, "User Service") {
       Component(UserApi, "User API", "FastAPI", "Аутентификация и профили")
       Component(AuthManager, "Auth Manager", "Python", "JWT, роли, доступы")
-      ContainerDb(UserDb, "Users DB", "PostgreSQL", "Пользователи и роли")
     }
 
     Container_Boundary(houseService, "House Service") {
       Component(HouseApi, "House API", "FastAPI", "Дома, доступы")
       Component(AccessManager, "Access Manager", "Python", "Права пользователей на дом")
-      ContainerDb(HouseDb, "Houses DB", "PostgreSQL", "Дома, права")
     }
-  }
 
-  Container_Boundary(deviceService, "Device Service") {
-    Component(DeviceApi, "Device API", "FastAPI", "REST-интерфейс реестра устройств")
-    Component(DeviceRegistry, "Device Registry", "Python", "Устройства, привязка к дому")
-    Component(CapabilityCatalog, "Capability Catalog", "Python", "Типы устройств и их capabilities")
-    ContainerDb(DeviceDb, "Devices DB", "PostgreSQL", "Реестр устройств")
+    Container_Boundary(deviceService, "Device Service") {
+      Component(DeviceApi, "Device API", "FastAPI", "REST-интерфейс реестра устройств")
+      Component(DeviceRegistry, "Device Registry", "Python", "Устройства, привязка к дому")
+      Component(CapabilityCatalog, "Capability Catalog", "Python", "Типы устройств и их capabilities")
+    }
+
+    ContainerDb(CoreDb, "Core DB", "PostgreSQL", "Пользователи, права, реестр устройств")
   }
 
   Container_Boundary(controlService, "Device Control Service") {
@@ -60,13 +59,13 @@ Rel(ApiGateway, IngestApi, "/ingest", "REST")
 Rel(ApiGateway, QueryApi, "/telemetry", "REST")
 
 Rel(UserApi, AuthManager, "Использует")
-Rel(AuthManager, UserDb, "Читает/пишет")
+Rel(AuthManager, CoreDb, "Читает/пишет")
 Rel(HouseApi, AccessManager, "Использует")
-Rel(AccessManager, HouseDb, "Читает/пишет")
+Rel(AccessManager, CoreDb, "Читает/пишет")
 
 Rel(DeviceApi, DeviceRegistry, "Использует")
 Rel(DeviceRegistry, CapabilityCatalog, "Проверяет тип")
-Rel(DeviceRegistry, DeviceDb, "Читает/пишет")
+Rel(DeviceRegistry, CoreDb, "Читает/пишет")
 
 Rel(ControlApi, CommandValidator, "Валидирует")
 Rel(CommandValidator, DeviceApi, "Запрашивает capabilities", "REST")
@@ -78,7 +77,8 @@ Rel(Queue, TelemetryWorker, "Доставляет", "AMQP")
 Rel(TelemetryWorker, TelemetryDb, "Пишет", "SQL")
 Rel(QueryApi, TelemetryDb, "Читает", "SQL")
 
-Lay_L(coreServices, deviceService)
-Lay_R(deviceService, controlService)
+Lay_R(userService, houseService)
+Lay_R(houseService, deviceService)
+Lay_R(coreServices, controlService)
 Lay_R(controlService, telemetry)
 @enduml
