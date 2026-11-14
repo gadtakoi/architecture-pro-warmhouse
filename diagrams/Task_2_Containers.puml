@@ -20,13 +20,10 @@ System_Boundary(warmhouse, "WarmHouse System") {
 
   Container_Boundary(core, "Core Services (As-Is domains)") {
     Container(UserService, "User Service", "Python, FastAPI", "Домен «Пользователи»: аккаунты, роли, аутентификация")
-    ContainerDb(UserDb, "Users DB", "PostgreSQL", "Пользователи и роли")
-
     Container(HouseService, "House Service", "Python, FastAPI", "Домен «Дома»: дома, доступы")
-    ContainerDb(HouseDb, "Houses DB", "PostgreSQL", "Дома, права")
-
     Container(DeviceService, "Device Service", "Python, FastAPI", "Домен «Устройства»: реестр устройств, подключение, capabilities")
-    ContainerDb(DeviceDb, "Devices DB", "PostgreSQL", "Типы устройств, capabilities, статусы")
+
+    ContainerDb(CoreDb, "Core DB", "PostgreSQL", "Единая БД доменов: пользователи, роли, дома, права, типы устройств, capabilities, статусы")
   }
 
   Container_Boundary(automation, "Home Automation Services (To-Be)") {
@@ -63,9 +60,9 @@ Rel(ApiGateway, DeviceControlService, "/control, /commands", "REST")
 Rel(ApiGateway, IngestService, "/ingest", "REST")
 Rel(ApiGateway, QueryService, "/telemetry", "REST")
 
-Rel(UserService, UserDb, "Читает/пишет")
-Rel(HouseService, HouseDb, "Читает/пишет")
-Rel(DeviceService, DeviceDb, "Читает/пишет")
+Rel(UserService, CoreDb, "Читает/пишет")
+Rel(HouseService, CoreDb, "Читает/пишет")
+Rel(DeviceService, CoreDb, "Читает/пишет")
 Rel(DeviceControlService, DeviceControlDb, "Читает/пишет")
 
 Rel(DeviceControlService, DeviceService, "Проверяет capabilities и тип устройства", "REST")
