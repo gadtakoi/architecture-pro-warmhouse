@@ -70,7 +70,8 @@ class HouseHub:
         if command["action"] == "turn_off":
             return {"power": "off"}
         if command["action"] == "set_temperature":
-            return {"target_temperature": float(params.get("target", 22.0))}
+            target = float(params.get("target", 22.0))
+            return {"target_temperature": target, "current_temperature": target}
         return None
 
 
