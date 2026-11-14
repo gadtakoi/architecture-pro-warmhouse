@@ -2,7 +2,7 @@
 title WarmHouse — ER Diagram
 
 
-package "User Service" {
+package "Core DB" {
 
   entity "users" as users {
     * id : uuid <<PK>>
@@ -11,9 +11,6 @@ package "User Service" {
     * password_hash : varchar
     * role : varchar
   }
-}
-
-package "House Service" {
 
   entity "houses" as houses {
     * id : uuid <<PK>>
@@ -27,9 +24,6 @@ package "House Service" {
     --
     * role : varchar
   }
-}
-
-package "Device Service" {
 
   entity "device_types" as device_types {
     * id : uuid <<PK>>
