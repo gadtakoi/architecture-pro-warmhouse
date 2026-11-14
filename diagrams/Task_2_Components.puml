@@ -79,6 +79,8 @@ Rel(QueryApi, TelemetryDb, "Читает", "SQL")
 
 Lay_R(userService, houseService)
 Lay_R(houseService, deviceService)
+Lay_R(deviceService, CoreDb)
+Lay_D(coreServices, CoreDb)
 Lay_R(coreServices, controlService)
 Lay_R(controlService, telemetry)
 @enduml
