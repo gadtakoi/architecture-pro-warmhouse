@@ -74,45 +74,18 @@
 
 # Задание 5. Работа с docker и docker-compose
 
-Перейдите в apps.
+1) При запросе /temperature?location= будет отдавать рандомное значение температуры.
 
-Там находится приложение-монолит для работы с датчиками температуры. В README.md описано как запустить решение.
-
-Вам нужно:
-
-1) сделать простое приложение temperature-api на любом удобном для вас языке программирования, которое при запросе
-   /temperature?location= будет отдавать рандомное значение температуры.
-
-Locations - название комнаты, sensorId - идентификатор названия комнаты
-
+```bash
+cd apps
+docker compose up -d --build
 ```
-	// If no location is provided, use a default based on sensor ID
-	if location == "" {
-		switch sensorID {
-		case "1":
-			location = "Living Room"
-		case "2":
-			location = "Bedroom"
-		case "3":
-			location = "Kitchen"
-		default:
-			location = "Unknown"
-		}
-	}
 
-	// If no sensor ID is provided, generate one based on location
-	if sensorID == "" {
-		switch location {
-		case "Living Room":
-			sensorID = "1"
-		case "Bedroom":
-			sensorID = "2"
-		case "Kitchen":
-			sensorID = "3"
-		default:
-			sensorID = "0"
-		}
-	}
+```bash
+curl http://localhost:8081/temperature?location=Living%20Room
+```
+```bash
+curl http://localhost:8081/temperature?sensor_id=1
 ```
 
 2) Приложение следует упаковать в Docker и добавить в docker-compose. Порт по умолчанию должен быть 8081
@@ -127,37 +100,35 @@ Locations - название комнаты, sensorId - идентификато
 
 Должно при каждом вызове отображаться разное значение температуры
 
-Ревьюер будет проверять точно так же.
-
 # **Задание 6. Разработка MVP**
 
 ### Решение
 
-К монолиту добавлены два новых микросервиса и симулятор хаба умного дома. Интеграция с монолитом идёт через его существующий API.
+К монолиту добавлены два новых микросервиса и симулятор хаба умного дома. Интеграция с монолитом идёт через его
+существующий API.
 
 ```
 Пользователь ──POST /control──▶ API Gateway :8005 ──POST /commands──▶ Device Service :8002 (очередь команд)
 House Hub (Python) ──POST /commands (данные устройств ⇄ команды)──▶ API Gateway :8005 — единственный эндпойнт хаба
 API Gateway ──PATCH state──▶ Device Service :8002 · ──telemetry.raw──▶ RabbitMQ :5672 ──▶ Telemetry Service :8003 · ──PATCH sensors──▶ Монолит :8080
-index.html (открывается как файл, контейнер не нужен) ── iframe на все сервисы
+index.html (открывается как файл) ── iframe на все сервисы
 ```
 
-Соответствие схеме `diagrams/Task_2_Containers.puml`: API Gateway маршрутизирует `/control` (пользователь)
-и `/commands` (хаб общается с системой только через Gateway — по схеме это `Rel(houses, ApiGateway, ... GET /commands)`,
-в MVP это один POST-обмен: хаб присылает данные устройств, забирает команды). Очередь команд остаётся
-в device-домене (device service) — в MVP роли Device Service и Device Control объединены в одном сервисе
-`:8002`; при росте очередь выделяется в отдельный Device Control Service со своей БД. Gateway своего
-состояния не держит — только маршрутизирует.
+API Gateway маршрутизирует `/control` (пользователь) и `/commands` (хаб общается с системой только через Gateway — по
+схеме это `Rel(houses, ApiGateway, ... GET /commands)`, в MVP это один POST-обмен: хаб присылает данные устройств,
+забирает команды). Очередь команд остаётся в device-домене (device service) — в MVP роли Device Service и Device Control
+объединены в одном сервисе `:8002`; при росте очередь выделяется в отдельный Device Control Service со своей БД. Gateway
+своего состояния не держит — только маршрутизирует.
 
-| Сервис | Язык | Порт | Что делает |
-|---|---|---|---|
-| `apps/device_service` | Python 3.14 (stdlib `http.server`) | 8002 | Реализует `docs/api/device-api.yaml`: `GET /api/v1/devices/{id}`, `PATCH /devices/{id}/state`, `POST /devices/{id}/commands` (202, очередь), плюс demo-дополнения `GET /devices` и `GET /devices/{id}/commands/next` (выдача команд через gateway) |
-| `apps/api_gateway` | Python 3.14 (stdlib `http.server` + `pika`) | 8005 | API Gateway из схемы To-Be: `POST /api/v1/control/` — управление от пользователя (свет, температура, по `type` или `device_id`); `POST /api/v1/commands/` — обмен с хабом: ретранслирует состояния хаба в device service, публикует телеметрию в RabbitMQ, обновляет датчик монолита, в ответ отдаёт команды. Своего состояния нет |
-| `apps/telemetry_service` | Python 3.14 (stdlib `http.server` + `pika`) | 8003 | Consumer очереди `telemetry.raw` и `GET /api/v1/telemetry/latest` — последние показания |
-| `apps/house_hub` | Python 3.14 (stdlib) | — (входящего HTTP нет) | Симулятор хаба: раз в 4 секунды обменивается с системой через **один** эндпойнт — `POST /commands/` API Gateway (отдаёт данные устройств, забирает команды и применяет локально); живость видна в `docker logs smarthome-house-hub` |
-| `apps/web` | — (открывается как файл) | — | Статическая страница `index.html` с iframe и кнопкой отправки команды; открывается двойным кликом, контейнер не нужен |
-| `apps/smart_home` | Go (монолит) | 8080 | Код не менялся; датчик «Thermostat (from device-service)» в его БД обновляется gateway — телеметрия микросервисов течёт в монолит |
-| rabbitmq | — | 5672 / 15672 | Брокер для телеметрии; management UI на :15672 (guest/guest) |
+| Сервис                   | Язык                                        | Порт                   | Что делает                                                                                                                                                                                                                                                                                                                         |
+|--------------------------|---------------------------------------------|------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `apps/device_service`    | Python 3.14 (stdlib `http.server`)          | 8002                   | Реализует `docs/api/device-api.yaml`: `GET /api/v1/devices/{id}`, `PATCH /devices/{id}/state`, `POST /devices/{id}/commands` (202, очередь), плюс demo-дополнения `GET /devices` и `GET /devices/{id}/commands/next` (выдача команд через gateway)                                                                                 |
+| `apps/api_gateway`       | Python 3.14 (stdlib `http.server` + `pika`) | 8005                   | API Gateway из схемы To-Be: `POST /api/v1/control/` — управление от пользователя (свет, температура, по `type` или `device_id`); `POST /api/v1/commands/` — обмен с хабом: ретранслирует состояния хаба в device service, публикует телеметрию в RabbitMQ, обновляет датчик монолита, в ответ отдаёт команды. Своего состояния нет |
+| `apps/telemetry_service` | Python 3.14 (stdlib `http.server` + `pika`) | 8003                   | Consumer очереди `telemetry.raw` и `GET /api/v1/telemetry/latest` — последние показания                                                                                                                                                                                                                                            |
+| `apps/house_hub`         | Python 3.14 (stdlib)                        | — (входящего HTTP нет) | Симулятор хаба: раз в 4 секунды обменивается с системой через **один** эндпойнт — `POST /commands/` API Gateway (отдаёт данные устройств, забирает команды и применяет локально); живость видна в `docker logs smarthome-house-hub`                                                                                                |
+| `apps/web`               | — (открывается как файл)                    | —                      | Статическая страница `index.html` с iframe и кнопкой отправки команды; открывается двойным кликом, контейнер не нужен                                                                                                                                                                                                              |
+| `apps/smart_home`        | Go (монолит)                                | 8080                   | Код не менялся; датчик «Thermostat (from device-service)» в его БД обновляется gateway — телеметрия микросервисов течёт в монолит                                                                                                                                                                                                  |
+| rabbitmq                 | —                                           | 5672 / 15672           | Брокер для телеметрии; management UI на :15672 (guest/guest)                                                                                                                                                                                                                                                                       |
 
 ### **Запуск и проверка**
 
@@ -167,8 +138,9 @@ docker compose up -d --build
 ```
 
 Открыть `apps/web/index.html` двойным кликом в браузере — страница с iframe (обновляются каждые 3с)
-и кнопкой «Переключить свет»: команда уходит в API Gateway (`POST /control`, 202 PENDING), хаб забирает
-её в обмене `POST /commands/` при следующем тике, применяет — и состояние света меняется во всех iframe.
+и кнопками «Переключить свет» или «Задать температуру»: команда уходит в API Gateway (`POST /control`, 202 PENDING), хаб
+забирает её в обмене `POST /commands/` при следующем тике, применяет — и состояние света или температуры меняется во
+всех iframe.
 
 Проверка через curl:
 
@@ -183,7 +155,7 @@ curl -X POST http://localhost:8005/api/v1/control/ -H "Content-Type: application
 curl -X POST http://localhost:8005/api/v1/control/ -H "Content-Type: application/json" -d '{"type": "thermostat", "action": "set_temperature", "params": {"target": 25.5}}'
 
 # то же напрямую по контракту docs/api/device-api.yaml, мимо gateway (202 Accepted)
-curl -X POST http://localhost:8002/api/v1/devices/7c9e6679-7425-40de-944b-e07fc1f90ae7/commands -H "Content-Type: application/json" -d '{"action": "turn_on", "params": {}}'
+curl -X POST http://localhost:8002/api/v1/devices/7c9e6679-7425-40de-944b-e07fc1f90ae7/commands -H "Content-Type: application/json" -d '{"action": "turn_off", "params": {}}'
 
 curl -X POST http://localhost:8002/api/v1/devices/3f1c2a9e-3b4d-4c5e-8f7a-1b2c3d4e5f60/commands -H "Content-Type: application/json" -d '{"action": "set_temperature", "params": {"target": 39}}'
 
