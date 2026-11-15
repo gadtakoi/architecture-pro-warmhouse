@@ -10,6 +10,8 @@
     button { font: inherit; padding: 6px 12px; border-radius: 7px; border: 1px solid #067af8; background: #067af8; color: #fff; cursor: pointer; }
     button:disabled { opacity: .5; cursor: wait; }
     #cmdStatus { color: #0550a8; }
+    #tempStatus { color: #0550a8; }
+    input { font: inherit; width: 72px; padding: 6px 8px; border-radius: 7px; border: 1px solid #c6ced9; }
     a { color: #0550a8; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 12px; }
     section { border: 1px solid #d7dde5; border-radius: 10px; overflow: hidden; background: #fff; }
@@ -27,6 +29,13 @@
     <a href="http://localhost:15672" target="_blank">RabbitMQ UI (guest/guest)</a>
   </div>
 
+  <div class="bar">
+    <label for="targetInput">Термостат:</label>
+    <input id="targetInput" type="number" min="5" max="35" step="0.5" value="22">
+    <button id="tempBtn">Задать температуру (set_temperature)</button>
+    <span id="tempStatus">целевая температура уйдёт в device-service для устройства 3f1c2a9e…</span>
+  </div>
+
   <div class="grid">
     <section>
       <h2>Монолит :8080 — датчики (значение температуры пишет хаб через API монолита)</h2>
@@ -42,15 +51,19 @@
     </section>
   </div>
 
-  <p class="note">Iframe обновляются каждые 3 секунды. Кнопка отправляет POST /control/
+  <p class="note">Iframe обновляются каждые 3 секунды. Кнопки отправляют POST /control/
     в API Gateway → gateway ставит команду в очередь device-service → хаб забирает её
-    через GET /commands/ при следующем опросе и применяет (turn_on / turn_off) →
-    состояние света меняется.</p>
+    через GET /commands/ при следующем опросе и применяет (turn_on / turn_off для света,
+    set_temperature с params.target для термостата) → состояние устройства меняется.</p>
 
   <script>
     const LIGHT_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+    const THERMOSTAT_ID = "3f1c2a9e-3b4d-4c5e-8f7a-1b2c3d4e5f60";
     const btn = document.getElementById("lightBtn");
     const statusLine = document.getElementById("cmdStatus");
+    const tempBtn = document.getElementById("tempBtn");
+    const tempInput = document.getElementById("targetInput");
+    const tempStatus = document.getElementById("tempStatus");
 
     // автообновление iframe (пере-навигация iframe разрешена между origin-ами)
     setInterval(() => {
@@ -74,6 +87,33 @@
         statusLine.textContent = "Ошибка: " + err.message;
       } finally {
         btn.disabled = false;
+      }
+    });
+
+    tempBtn.addEventListener("click", async () => {
+      const target = parseFloat(tempInput.value);
+      if (!Number.isFinite(target)) {
+        tempStatus.textContent = "Ошибка: введите число";
+        return;
+      }
+      tempBtn.disabled = true;
+      tempStatus.textContent = "…";
+      try {
+        const response = await fetch("http://localhost:8005/api/v1/control/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device_id: THERMOSTAT_ID, action: "set_temperature", params: { target } }),
+        });
+        const command = await response.json();
+        if (!response.ok) {
+          tempStatus.textContent = `${response.status}: ${command.code || ""} ${command.message || ""}`.trim();
+        } else {
+          tempStatus.textContent = `${response.status}: set_temperature ${target} °C → ${command.status}`;
+        }
+      } catch (err) {
+        tempStatus.textContent = "Ошибка: " + err.message;
+      } finally {
+        tempBtn.disabled = false;
       }
     });
   </script>
