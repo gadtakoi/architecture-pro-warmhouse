@@ -72,4 +72,6 @@ Rel(MessageBroker, TelemetryWorker, "telemetry.raw", "AMQP", $tags="async")
 Rel(TelemetryWorker, TelemetryDb, "Батч-запись", "SQL")
 Rel(QueryService, TelemetryDb, "Чтение", "SQL")
 
+Lay_R(core, automation)
+Lay_R(automation, telemetry)
 @enduml
