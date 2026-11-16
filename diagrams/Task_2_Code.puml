@@ -1,0 +1,93 @@
+@startuml
+title WarmHouse — Code Level: Device Control Service (class diagram)
+
+package "api" {
+
+  class ControlRouter {
+    +POST /control : Command
+    +GET /commands : list[Command]
+  }
+
+  class ControlRequest <<Pydantic>> {
+    +device_id : UUID
+    +action : str
+    +params : dict
+    +requested_by : UUID
+  }
+}
+
+package "domain" {
+
+  class CommandService {
+    -validator : CapabilityValidator
+    -commands : CommandRepository
+    +submit(request : ControlRequest) : Command
+    +fetch_pending(house_id) : list[Command]
+  }
+
+  class CapabilityValidator {
+    -devices : DeviceClient
+    +validate(device_id, action, params) : None
+  }
+
+  class Command <<entity>> {
+    +id : UUID
+    +house_id : UUID
+    +device_id : UUID
+    +action : str
+    +params : dict
+    +status : CommandStatus
+    +expires_at : datetime
+    +mark_delivered() : None
+  }
+
+  enum CommandStatus {
+    PENDING
+    DELIVERED
+    APPLIED
+    FAILED
+  }
+}
+
+package "infrastructure" {
+
+  class CommandRepository <<interface>> {
+    +save(command : Command) : None
+    +find_pending_by_house(house_id) : list[Command]
+    +find_by_id(command_id) : Command
+  }
+
+  class DeviceClient {
+    +get_capabilities(device_id) : Capability
+  }
+
+  class Capability <<value object>> {
+    +device_type : str
+    +actions : dict
+    +supports(action) : bool
+  }
+}
+
+ControlRouter --> ControlRequest : принимает
+ControlRouter --> CommandService : вызывает
+CommandService --> Command : создаёт
+CommandService --> CapabilityValidator : валидирует
+CommandService --> CommandRepository : сохраняет / читает
+Command --> CommandStatus : имеет
+CapabilityValidator --> DeviceClient : запрашивает capabilities
+DeviceClient ..> Capability : читает
+
+note right of ControlRouter
+  GET /commands — один запрос на дом: house_id
+  берётся из токена хаба, ответ содержит команды
+  всех устройств дома.
+end note
+
+note bottom of CommandService
+  fetch_pending: SELECT ... WHERE status = 'PENDING'
+  AND expires_at > now(); выданные команды
+  переводятся в DELIVERED (mark_delivered)
+  и повторно не отдаются.
+end note
+
+@enduml
